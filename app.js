@@ -1,10 +1,6 @@
 // import the Solana web3.js library
 const web3 = require("@solana/web3.js");
 const { TokenSwap } = require("@solana/spl-token-swap");
-const {
-  TOKEN_PROGRAM_ID,
-  getOrCreateAssociatedTokenAccount,
-} = require("@solana/spl-token");
 
 // load the local utility functions
 const {
@@ -17,49 +13,26 @@ const {
 const { createFullTokenMint } = require("./minter");
 const { createSwapPool } = require("./swapPool");
 
-// define our program ID and cluster to interact with
-const SOLANA_CLUSTER = "devnet";
-const SOLANA_CLUSTER_URL = web3.clusterApiUrl(SOLANA_CLUSTER);
-// const SOLANA_CLUSTER_URL = "http://localhost:8899";
+/*
+  Define some assorted constants
+*/
+const amountToSwap = 5;
 
+// define our program ID and cluster to interact with
+// const SOLANA_CLUSTER_URL = web3.clusterApiUrl("devnet");
+const SOLANA_CLUSTER_URL = "http://localhost:8899";
+
+/*
+  Create an async function to allow for Promises
+*/
 async function main() {
   // create a new connection to the Solana blockchain
   const connection = new web3.Connection(SOLANA_CLUSTER_URL);
 
-  let transaction;
-
-  // const slot = await connection.getSlot();
-
-  // const block = await connection.getBlock(slot, {
-  //   maxSupportedTransactionVersion: 0,
-  // });
-
-  // // calculate the min rent needed to keep account open
-  // let minRent = await connection.getMinimumBalanceForRentExemption(0);
-  // console.log("min balance for rent exempt:", minRent);
-
-  // // console.log(block);
-
-  // blockhash = await connection
-  //   .getLatestBlockhash()
-  //   .then((res) => res.blockhash);
-  // console.log(recentBlockhash);
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  /*
-    generate 2 address, saving them locally
-    create 2 random tokens, all owned by a single payer
-    create the token swap
-    v0 this bitch
-  */
-
   // create or generate keys for testing (aka "throw away" wallets), and fund them
   let payer = await loadOrGenerateKeypair("payer");
   await airdropOnLowBalance(connection, payer);
+
   let receiver = await loadOrGenerateKeypair("receiver");
   await airdropOnLowBalance(connection, receiver);
 
@@ -79,26 +52,24 @@ async function main() {
     tokenA,
     tokenB
   );
-  // console.log(swapPool);
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  // extract the public keys from the token swap
+  // extract the desired public keys from the token swap
   const {
     tokenSwap,
     swapProgramId,
-    poolTokenProgramId,
+    // poolTokenProgramId, // added in @swap/spl-token-swap v0.2.1
+    tokenProgramId, // removed in @swap/spl-token-swap v0.2.1
     poolToken,
     feeAccount,
     authority,
     tokenAccountA,
     tokenAccountB,
-    mintA,
-    mintB,
+    // mintA, // added in @swap/spl-token-swap v0.2.1
+    // mintB, // added in @swap/spl-token-swap v0.2.1
   } = swapPool;
-
-  transaction = new web3.Transaction();
 
   console.log(
     "\n\n-------------------------------------------------------------------"
@@ -110,43 +81,25 @@ async function main() {
     "-------------------------------------------------------------------\n"
   );
 
-  // console.log(
-  //   `https://explorer.solana.com/address/${tokenSwap.toBase58()}?cluster=devnet`
-  // );
+  // console.log("Create receiver's pool token ATA...");
 
-  // console.log("token swap address:", tokenSwap.toBase58());
-  // console.log("swap program address:", swapProgramId.toBase58());
-  // console.log("pool token program address:", poolTokenProgramId.toBase58());
-  // console.log("token program:", TOKEN_PROGRAM_ID.toBase58());
+  // let receiversPoolAccount = await getOrCreateAssociatedTokenAccount(
+  //   connection,
+  //   payer,
+  //   poolToken,
+  //   receiver.publicKey
+  // );
+  // receiversPoolAccount = receiversPoolAccount.address;
+
+  // console.log("Receiver's pool token ATA:", receiversPoolAccount.toBase58());
 
   // console.log(
   //   "-------------------------------------------------------------------\n"
   // );
 
-  // console.log("mint A:", mintA.toBase58());
-  // console.log("token mint A:", tokenA.tokenMint.toBase58());
-  // console.log("mint B:", mintB.toBase58());
-  // console.log("token mint B:", tokenB.tokenMint.toBase58());
+  // console.log("Deposit liquidity...");
 
-  console.log("Create receiver's pool token ATA...");
-
-  let poolAccount = await getOrCreateAssociatedTokenAccount(
-    connection,
-    payer,
-    poolToken,
-    receiver.publicKey
-  );
-  poolAccount = poolAccount.address;
-
-  console.log("Receiver's pool token ATA:", poolAccount.toBase58());
-
-  console.log(
-    "-------------------------------------------------------------------\n"
-  );
-
-  console.log("Deposit liquidity...");
-
-  const poolTokenAmount = 1;
+  // const poolTokenAmount = 1;
 
   // create a deposit transactions (this also does not currently work...)
   // const depositIx = TokenSwap.depositAllTokenTypesInstruction(
@@ -160,7 +113,7 @@ async function main() {
   //   tokenAccountA,
   //   tokenAccountB,
   //   poolToken,
-  //   poolAccount,
+  //   receiversPoolAccount,
   //   swapProgramId,
   //   TOKEN_PROGRAM_ID,
   //   TOKEN_PROGRAM_ID,
@@ -172,7 +125,7 @@ async function main() {
   // );
   // transaction.add(depositIx);
 
-  const amountToSwap = 5;
+  console.log("Create a swap transaction...");
 
   // create the swap deposit instruction with added params
   // NOTE: this is a suspected problem that the Rust swap program expects the token mints as well, but the current JS library does not provide?
@@ -194,13 +147,36 @@ async function main() {
   //   TOKEN_PROGRAM_ID,
   //   poolTokenProgramId,
   //   amountToSwap,
-  //   0 // allow a minimum amount of 0 tokens in return; 0 not recommended for production apps!
+  //   0, // allow a minimum amount of 0 tokens in return; 0 not recommended for production apps!
 
   //   mintA,
-  //   mintB,
+  //   mintB
   // );
 
   // swap transaction using the current JS swap library
+  // the swap IX format that @solana/spl-token-swap v0.2.1 wants....
+  // but it does not work (due to a bug in the library)...
+  // const ixLegacy = TokenSwap.swapInstruction(
+  //   tokenSwap,
+  //   authority,
+  //   receiver.publicKey,
+  //   tokenA.receiverTokenAccount,
+  //   tokenAccountA,
+  //   tokenAccountB,
+  //   tokenB.receiverTokenAccount,
+  //   poolToken,
+  //   feeAccount,
+  //   null, // there is no host fee account!
+  //   swapProgramId,
+  //   TOKEN_PROGRAM_ID,
+  //   TOKEN_PROGRAM_ID,
+  //   poolTokenProgramId,
+  //   amountToSwap,
+  //   0 // allow a minimum amount of 0 tokens in return; 0 not recommended for production apps!
+  // );
+
+  // create a swap transaction using the JS swap library
+  // the swap IX format that @solana/spl-token-swap v0.2.0 wants....
   const ixLegacy = TokenSwap.swapInstruction(
     tokenSwap,
     authority,
@@ -213,55 +189,62 @@ async function main() {
     feeAccount,
     null, // there is no host fee account!
     swapProgramId,
-    TOKEN_PROGRAM_ID,
-    TOKEN_PROGRAM_ID,
-    poolTokenProgramId,
+    tokenProgramId,
     amountToSwap,
     0 // allow a minimum amount of 0 tokens in return; 0 not recommended for production apps!
   );
 
-  // console.log(ixLegacy);
+  // create a `legacy` transaction to perform a swap
+  const transaction = new web3.Transaction();
   transaction.add(ixLegacy);
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  console.log("Sending via 'legacy' transaction...");
+  // console.log("Sending via 'legacy' transaction...");
 
-  // console.log("Legacy byte length:", transaction.serialize().byteLength());
+  // // send a legacy 'transaction'
+  // txid = await web3.sendAndConfirmTransaction(connection, transaction, [
+  //   receiver,
+  // ]);
 
-  // send a legacy 'transaction'
-  txid = await web3.sendAndConfirmTransaction(connection, transaction, [
-    // payer,
-    receiver,
-  ]);
+  // console.log(
+  //   `Legacy swap transaction: https://explorer.solana.com/tx/${txid}?cluster=devnet`
+  // );
 
-  console.log(
-    `Legacy swap transaction: https://explorer.solana.com/tx/${txid}?cluster=devnet`
-  );
+  // console.log(ixLegacy.keys);
 
-  //   depositSingleTokenTypeExactAmountIn(userAccount, poolAccount, sourceTokenProgramId, userTransferAuthority, sourceTokenAmount, minimumPoolTokenAmount, confirmOptions) {
-  //     return __awaiter(this, void 0, void 0, function* () {
-  //         return yield (0, web3_js_1.sendAndConfirmTransaction)(this.connection, new web3_js_1.Transaction().add(
-  //           TokenSwap.depositSingleTokenTypeExactAmountInInstruction(this.tokenSwap, this.authority, userTransferAuthority.publicKey, userAccount, this.tokenAccountA, this.tokenAccountB, this.poolToken, poolAccount, this.swapProgramId, sourceTokenProgramId, this.poolTokenProgramId, sourceTokenAmount, minimumPoolTokenAmount))
-  //           , [this.payer, userTransferAuthority], confirmOptions);
-  //     });
-  // }
+  const keys = [];
 
-  // const keys = [];
+  // extract all the keys from the tokens and the token pool
+  for (let i = 0; i < ixLegacy.keys.length; i++) {
+    keys.push(ixLegacy.keys[i].pubkey);
+    console.log(ixLegacy.keys[i].pubkey.toBase58());
+  }
 
-  // // extract all the keys from the tokens and the token pool
-  // let ixs = swapPool.instructions;
-  // for (let i = 0; i < ixs.length; i++) {
-  //   for (let j = 0; j < ixs[i].keys.length; j++) {
-  //     keys.push(ixs[i].keys[j].pubkey);
-  //     console.log(ixs[i].keys[j].pubkey.toBase58());
-  //   }
-  // }
+  console.log("Total keys found in transaction:", keys.length);
 
-  // console.log("Total keys found:", keys.length);
+  // console.log("Legacy transaction byte length:");
+  // console.log(transaction.serialize().byteLength());
 
   return;
+
+  // const slot = await connection.getSlot();
+
+  // const block = await connection.getBlock(slot, {
+  //   maxSupportedTransactionVersion: 0,
+  // });
+
+  // // calculate the min rent needed to keep account open
+  // let minRent = await connection.getMinimumBalanceForRentExemption(0);
+  // console.log("min balance for rent exempt:", minRent);
+
+  // // console.log(block);
+
+  // blockhash = await connection
+  //   .getLatestBlockhash()
+  //   .then((res) => res.blockhash);
+  // console.log(recentBlockhash);
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -346,7 +329,7 @@ async function main() {
 
   //
   console.log("Send the transaction to create the lookup table:");
-  let txid = await sendTransactionV0(transaction);
+  txid = await sendTransactionV0(transaction);
   console.log("\n");
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -4,7 +4,6 @@ const token = require("@solana/spl-token");
 const {
   TokenSwap,
   TOKEN_SWAP_PROGRAM_ID,
-  OLD_TOKEN_SWAP_PROGRAM_ID,
   CurveType,
 } = require("@solana/spl-token-swap");
 
@@ -17,24 +16,12 @@ async function createSwapPool(
   airdrop = false
 ) {
   console.log(
-    "\n\n---------------------------------------------------------------------------------------------------"
+    "\n---------------------------------------------------------------------------------------------------"
   );
-  console.log("Create a swap pool");
+  console.log("Create a full token swap pool");
   console.log(
     "---------------------------------------------------------------------------------------------------\n"
   );
-
-  let txid;
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  const tokenSwapAccount = web3.Keypair.generate();
-
-  const minRent = await token.getMinimumBalanceForRentExemptAccount(connection);
-
-  // init an empty transaction
-  let transaction = new web3.Transaction();
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -54,15 +41,12 @@ async function createSwapPool(
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+  // generate a random, throw away wallet to be the owner of the swap pool
+  const tokenSwapAccount = web3.Keypair.generate();
+
   /*
     Derive the swap authority PDA account
   */
-
-  console.log("swap program address:", TOKEN_SWAP_PROGRAM_ID.toBase58());
-  console.log(
-    "old swap program address:",
-    OLD_TOKEN_SWAP_PROGRAM_ID.toBase58()
-  );
 
   const [swapAuthority, bump] = await web3.PublicKey.findProgramAddress(
     [tokenSwapAccount.publicKey.toBuffer()],
@@ -78,15 +62,7 @@ async function createSwapPool(
     Create the Token A minter
   */
 
-  console.log("Locating TokenA ATA...");
-
-  // let tokenAAccountAddress = await token.getAssociatedTokenAddress(
-  //   tokenA.tokenMint, // mint
-  //   swapAuthority, // owner
-  //   true // allow owner off curve
-  // );
-
-  // console.log(tokenA.tokenMint.toBase58());
+  console.log("Locating TokenA ATA owned by the swap...");
 
   let tokenAAccountAddress = await token.getOrCreateAssociatedTokenAccount(
     connection,
@@ -95,35 +71,16 @@ async function createSwapPool(
     swapAuthority,
     true
   );
-  // console.log("tokenAAccountAddress", tokenAAccountAddress);
+
+  // store only the PublicKey of the address
   tokenAAccountAddress = tokenAAccountAddress.address;
 
-  // return;
+  console.log("Swap PDA owned TokenA ATA:", tokenAAccountAddress.toBase58());
 
-  // let tokenAAccountAddress = await token.createAccount(
-  //   connection,
-  //   payer,
-  //   tokenA.tokenMint,
-  //   swapAuthority
-  // );
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  // let tokenAAccountAddress = await token.getAssociatedTokenAddress(
-  //   tokenA.tokenMint, // mint
-  //   swapAuthority, // owner
-  //   true // allow owner off curve
-  // );
-
-  console.log("Token A swap PDA:", tokenAAccountAddress.toBase58());
-
-  // const tokenAAccountInstruction =
-  //   token.createAssociatedTokenAccountInstruction(
-  //     payer.publicKey, // payer
-  //     tokenAAccountAddress, // ata
-  //     swapAuthority, // owner
-  //     tokenA.tokenMint // mint
-  //   );
-
-  // transaction.add(tokenAAccountInstruction);
+  console.log("Minting TokenA tokens to the swap's TokenA ATA...");
 
   const txMintA = await token.mintTo(
     connection,
@@ -131,12 +88,13 @@ async function createSwapPool(
     tokenA.tokenMint,
     tokenAAccountAddress,
     payer,
-    100
+    100 // amount of tokens to mint
   );
 
   console.log(
     `Transaction: https://explorer.solana.com/tx/${txMintA}?cluster=devnet`
   );
+
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -144,7 +102,7 @@ async function createSwapPool(
     Create the Token B minter
   */
 
-  console.log("Locating TokenB ATA...");
+  console.log("Locating TokenB ATA owned by the swap...");
 
   let tokenBAccountAddress = await token.getOrCreateAssociatedTokenAccount(
     connection,
@@ -153,35 +111,16 @@ async function createSwapPool(
     swapAuthority,
     true
   );
+
+  // store only the PublicKey address
   tokenBAccountAddress = tokenBAccountAddress.address;
 
-  // let tokenBAccountAddress = await token.createAccount(
-  //   connection,
-  //   payer,
-  //   tokenB.tokenMint,
-  //   swapAuthority
-  // );
-
-  // let tokenBAccountAddress = await token.getAssociatedTokenAddress(
-  //   tokenB.tokenMint, // mint
-  //   swapAuthority, // owner
-  //   true // allow owner off curve
-  // );
-
-  // const tokenBAccountInstruction =
-  //   token.createAssociatedTokenAccountInstruction(
-  //     payer.publicKey, // payer
-  //     tokenBAccountAddress, // ata
-  //     swapAuthority, // owner
-  //     tokenB.tokenMint // mint
-  //   );
-
-  console.log("Token B swap PDA:", tokenBAccountAddress.toBase58());
-
-  // transaction.add(tokenBAccountInstruction);
+  console.log("Swap PDA owned TokenB ATA:", tokenBAccountAddress.toBase58());
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  console.log("Minting TokenB tokens to the swap's TokenB ATA...");
 
   const txMintB = await token.mintTo(
     connection,
@@ -189,7 +128,7 @@ async function createSwapPool(
     tokenB.tokenMint,
     tokenBAccountAddress,
     payer,
-    100
+    100 // amount of tokens to mint
   );
 
   console.log(
@@ -199,36 +138,21 @@ async function createSwapPool(
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  // console.log("Init the token pool accounts...");
-
-  // // send a legacy 'transaction'
-  // txid = await web3.sendAndConfirmTransaction(connection, transaction, [
-  //   payer,
-  //   // tokenSwapAccount,
-  // ]);
-
-  // console.log(
-  //   `Transaction: https://explorer.solana.com/tx/${txid}?cluster=devnet`
-  // );
-
-  // transaction = new web3.Transaction();
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
   /*
       Create the LP tokens mint
   */
 
-  console.log("Creating the LP token's mint...");
+  console.log("\nCreating the liquidity pool token's mint...");
+
   const poolTokenMint = await token.createMint(
     connection,
     payer,
     swapAuthority,
     null, // no freeze authority
-    0
+    0 // decimals
   );
-  console.log("Pool mint:", poolTokenMint.toBase58());
+
+  console.log("Swap pool's mint address:", poolTokenMint.toBase58());
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -237,67 +161,29 @@ async function createSwapPool(
     Create the LP mint
   */
 
-  console.log("Locating token pool account...");
+  console.log("Locating swap owned, pool token's ATA...");
 
-  // let tokenAccountPool = await token.getOrCreateAssociatedTokenAccount(
-  //   connection,
-  //   payer,
-  //   poolTokenMint,
-  //   payer.publicKey,
-  //   true
-  // );
-  // tokenAccountPool = tokenAccountPool.address;
+  let tokenAccountPool = await token.getOrCreateAssociatedTokenAccount(
+    connection,
+    payer,
+    poolTokenMint,
+    payer.publicKey,
+    true
+  );
+  tokenAccountPool = tokenAccountPool.address;
 
-  let tokenAccountPool = web3.Keypair.generate();
-  // tokenAccountPool = await token.createAccount(
-  //   connection,
-  //   payer,
-  //   poolTokenMint,
-  //   swapAuthority,
-  //   tokenAccountPool
-  // );
-
-  const createTokenAccountPoolInstruction = web3.SystemProgram.createAccount({
-    fromPubkey: payer.publicKey,
-    newAccountPubkey: tokenAccountPool.publicKey,
-    space: token.ACCOUNT_SIZE,
-    lamports: minRent,
-    programId: token.TOKEN_PROGRAM_ID,
-  });
-  const initializeTokenAccountPoolInstruction =
-    token.createInitializeAccountInstruction(
-      tokenAccountPool.publicKey,
-      poolTokenMint,
-      payer.publicKey
-    );
-
-  transaction.add(createTokenAccountPoolInstruction);
-  transaction.add(initializeTokenAccountPoolInstruction);
-
-  console.log("tokenAccountPool:", tokenAccountPool.publicKey.toBase58());
-
-  // console.log("Init the pool's token account...");
+  console.log("Swap owned pool token ATA:", tokenAccountPool.toBase58());
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  // define the `feeOwner` address (this is set by the creators of the Swap program)
 
   const feeOwner = new web3.PublicKey(
     "HfoTxFR1Tm6kGmWgYWD6J7YHVy1UwqSULUGVLXkJqaKN"
   );
 
-  // console.log("Locating fee account...");
-  // let feeAccount = await token.getAssociatedTokenAddress(
-  //   poolTokenMint,
-  //   feeOwner,
-  //   true
-  // );
-  // const feeAccountIx = await token.createAssociatedTokenAccountInstruction(
-  //   payer.publicKey,
-  //   feeAccount,
-  //   poolTokenMint,
-  //   feeOwner
-  // );
-  // transaction.add(feeAccountIx);
+  console.log("Locating fee owner's pool token ATA...");
 
   let feeAccount = await token.getOrCreateAssociatedTokenAccount(
     connection,
@@ -306,69 +192,17 @@ async function createSwapPool(
     feeOwner,
     true
   );
+
+  // store only the PublicKey
   feeAccount = feeAccount.address;
 
-  console.log("Token fee account:", feeAccount.toBase58());
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  console.log("Sending transaction...");
-
-  // send a legacy 'transaction'
-  txid = await web3.sendAndConfirmTransaction(connection, transaction, [
-    payer,
-    tokenAccountPool,
-    // tokenSwapAccount,
-  ]);
-
-  console.log(
-    `Pool transaction: https://explorer.solana.com/tx/${txid}?cluster=devnet`
-  );
-
-  // console.log(`Minting some tokens to the pool...`);
-
-  // const poolTokenMintTx = await token.mintTo(
-  //   connection,
-  //   payer,
-  //   poolTokenMint,
-  //   tokenAccountPool.publicKey,
-  //   swapAuthority,
-  //   1_000
-  // );
-
-  // console.log(
-  //   `Transaction: https://explorer.solana.com/tx/${poolTokenMintTx}?cluster=devnet`
-  // );
-
-  // transaction = new web3.Transaction();
+  console.log("Fee owner's ATA:", feeAccount.toBase58());
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   /*
-    Execute the full transaction to create the swap pool
-  */
-
-  // console.log("Create the fee account");
-
-  // // send a legacy 'transaction'
-  // txid = await web3.sendAndConfirmTransaction(connection, transaction, [
-  //   payer,
-  //   // feeAccount,
-  // ]);
-
-  // console.log(
-  //   `Transfer transaction: https://explorer.solana.com/tx/${txid}?cluster=devnet`
-  // );
-
-  transaction = new web3.Transaction();
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  /*
-      Finally init the actual swap pool
+      Finally init the actual swap pool between TokenA and TokenB
   */
 
   console.log("Initialize the token swap...");
@@ -384,14 +218,14 @@ async function createSwapPool(
     tokenA.tokenMint,
     tokenB.tokenMint,
     feeAccount,
-    tokenAccountPool.publicKey,
+    tokenAccountPool,
     TOKEN_SWAP_PROGRAM_ID,
     token.TOKEN_PROGRAM_ID,
 
     0, // Trade fee numerator
-    10_000, // Trade fee denominator
+    1000, // Trade fee denominator
     5, // Owner trade fee numerator
-    10_000, // Owner trade fee denominator
+    1000, // Owner trade fee denominator
     0, // Owner withdraw fee numerator
     0, // Owner withdraw fee denominator
     20, // Host fee numerator
@@ -399,43 +233,8 @@ async function createSwapPool(
     CurveType.ConstantProduct // Curve type
   );
 
-  // console.log(tokenSwap);
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  /*
-    Execute the full transaction to create the swap pool
-  */
-
-  // // send a legacy 'transaction'
-  // txid = await web3.sendAndConfirmTransaction(connection, transaction, [
-  //   payer,
-  //   // tokenSwapAccount,
-  // ]);
-
-  // console.log(
-  //   `Transfer transaction: https://explorer.solana.com/tx/${txid}?cluster=devnet`
-  // );
-
-  // return the things
   return tokenSwap;
-
-  // return {
-  //   tokenSwap,
-  //   tokenSwapAccount,
-  //   tokenAccountPool,
-  //   swapAuthority,
-  //   tokenAAccountAddress,
-  //   tokenBAccountAddress,
-  //   poolTokenMint,
-  //   feeAccount,
-  //   instructions: transaction.instructions,
-  // };
 }
-
-// run our code, allowing use of Promises
-// createSwapPool();
 
 module.exports = {
   createSwapPool,
