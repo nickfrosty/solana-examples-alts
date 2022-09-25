@@ -26,8 +26,6 @@ async function main() {
   // create a new connection to the Solana blockchain
   const connection = new web3.Connection(SOLANA_CLUSTER_URL);
 
-  const slot = await connection.getSlot();
-
   // load or generate wallets for testing (aka "throw away" wallets), and fund them
   let payer = await loadOrGenerateKeypair("payer");
   await airdropOnLowBalance(connection, payer);
@@ -129,10 +127,12 @@ async function main() {
     Create and extend the Address Lookup Table 
   */
 
+  const slot = await connection.getSlot();
+
   console.log(
     "\nWaiting a few seconds to please the address lookup table slot checker...\n"
   );
-  await new Promise((resolve) => setTimeout(resolve, 5_000));
+  await new Promise((resolve) => setTimeout(resolve, 6_000));
 
   // create an Address Lookup Table instruction (and derive it's address)
   const [lookupTableInst, lookupTableAddress] =
@@ -264,7 +264,7 @@ async function main() {
   ****************************************************************************************************
   ****************************************************************************************************/
 
-  // sign the v0 transaction using the file system wallet we created named `payer`
+  // sign the v0 transaction using the file system wallet we created named `receiver`
   transactionV0.sign([receiver]);
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
