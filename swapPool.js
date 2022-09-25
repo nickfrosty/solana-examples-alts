@@ -7,6 +7,10 @@ const {
   CurveType,
 } = require("@solana/spl-token-swap");
 
+const { loadSavedSwapPool, saveSwapPoolProfile } = require("./utils");
+
+const mintAmount = 10_000;
+
 async function createSwapPool(
   connection,
   payer,
@@ -15,6 +19,19 @@ async function createSwapPool(
   tokenB,
   airdrop = false
 ) {
+  // attempt to load a saved token mint
+  const loadedPool = loadSavedSwapPool();
+  if (loadedPool) {
+    // ensure the loaded pool matches the current tokens
+    if (
+      loadedPool.mintA.toBase58() === tokenA.tokenMint.toBase58() &&
+      loadedPool.mintB.toBase58() === tokenB.tokenMint.toBase58()
+    ) {
+      console.log(`Swap pool loaded:`, loadedPool.tokenSwap.toBase58());
+      return loadedPool;
+    }
+  }
+
   console.log(
     "\n---------------------------------------------------------------------------------------------------"
   );
@@ -88,7 +105,7 @@ async function createSwapPool(
     tokenA.tokenMint,
     tokenAAccountAddress,
     payer,
-    100 // amount of tokens to mint
+    mintAmount // amount of tokens to mint
   );
 
   console.log(
@@ -128,7 +145,7 @@ async function createSwapPool(
     tokenB.tokenMint,
     tokenBAccountAddress,
     payer,
-    100 // amount of tokens to mint
+    mintAmount // amount of tokens to mint
   );
 
   console.log(
@@ -232,6 +249,9 @@ async function createSwapPool(
     100, // Host fee denominator
     CurveType.ConstantProduct // Curve type
   );
+
+  // locally cache the pool info
+  saveSwapPoolProfile(tokenSwap);
 
   return tokenSwap;
 }

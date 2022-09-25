@@ -13,8 +13,8 @@ const {
 
 // define base constants
 const decimal = 0;
-const amountMint = 1_000;
-const amountTransfer = 100;
+const amountMint = 100_000;
+const amountTransfer = 1_000;
 
 async function createFullTokenMint(
   connection,
@@ -24,7 +24,7 @@ async function createFullTokenMint(
   airdrop = false
 ) {
   // attempt to load a saved token mint
-  const loadedMint = await loadSavedTokenProfile(connection, tokenName);
+  const loadedMint = loadSavedTokenProfile(tokenName);
   if (loadedMint) {
     console.log(
       `Mint loaded for ${tokenName}:`,
@@ -99,7 +99,9 @@ async function createFullTokenMint(
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  console.log(`\nMinting ${amountMint} tokens to 'tokenAccount'...`);
+  console.log(
+    `\nMinting ${amountMint.toLocaleString()} tokens to 'tokenAccount'...`
+  );
 
   const txMint = await token.mintTo(
     connection,
@@ -169,6 +171,7 @@ async function createFullTokenMint(
     tokenProgram: token.TOKEN_PROGRAM_ID,
   };
 
+  // locally cache the token addresses
   saveTokenProfile(tokenName, fullTokenMint);
 
   return fullTokenMint;

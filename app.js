@@ -3,11 +3,7 @@ const web3 = require("@solana/web3.js");
 const { TokenSwap } = require("@solana/spl-token-swap");
 
 // load the local utility functions
-const {
-  sendTransactionV0,
-  loadOrGenerateKeypair,
-  airdropOnLowBalance,
-} = require("./utils");
+const { loadOrGenerateKeypair, airdropOnLowBalance } = require("./utils");
 
 // load task specific helper functions
 const { createFullTokenMint } = require("./minter");
@@ -16,7 +12,8 @@ const { createSwapPool } = require("./swapPool");
 /*
   Define some assorted constants
 */
-const amountToSwap = 5;
+const amountToSwap = 5; // number of tokens to swap per instruction
+const ixCounter = 24; // number of instructions to run per transaction
 
 // define our program ID and cluster to interact with
 // const SOLANA_CLUSTER_URL = web3.clusterApiUrl("devnet");
@@ -29,7 +26,9 @@ async function main() {
   // create a new connection to the Solana blockchain
   const connection = new web3.Connection(SOLANA_CLUSTER_URL);
 
-  // create or generate keys for testing (aka "throw away" wallets), and fund them
+  const slot = await connection.getSlot();
+
+  // load or generate wallets for testing (aka "throw away" wallets), and fund them
   let payer = await loadOrGenerateKeypair("payer");
   await airdropOnLowBalance(connection, payer);
 
@@ -53,198 +52,73 @@ async function main() {
     tokenB
   );
 
+  // return;
+
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  // extract the desired public keys from the token swap
-  const {
-    tokenSwap,
-    swapProgramId,
-    // poolTokenProgramId, // added in @swap/spl-token-swap v0.2.1
-    tokenProgramId, // removed in @swap/spl-token-swap v0.2.1
-    poolToken,
-    feeAccount,
-    authority,
-    tokenAccountA,
-    tokenAccountB,
-    // mintA, // added in @swap/spl-token-swap v0.2.1
-    // mintB, // added in @swap/spl-token-swap v0.2.1
-  } = swapPool;
+  console.log("\n\n----------------------------------------------------------");
+  console.log("-------------------------------------------------------------");
+  console.log("----------------------------------------------------------\n");
 
-  console.log(
-    "\n\n-------------------------------------------------------------------"
-  );
-  console.log(
-    "-------------------------------------------------------------------"
-  );
-  console.log(
-    "-------------------------------------------------------------------\n"
-  );
-
-  // console.log("Create receiver's pool token ATA...");
-
-  // let receiversPoolAccount = await getOrCreateAssociatedTokenAccount(
-  //   connection,
-  //   payer,
-  //   poolToken,
-  //   receiver.publicKey
-  // );
-  // receiversPoolAccount = receiversPoolAccount.address;
-
-  // console.log("Receiver's pool token ATA:", receiversPoolAccount.toBase58());
-
-  // console.log(
-  //   "-------------------------------------------------------------------\n"
-  // );
-
-  // console.log("Deposit liquidity...");
-
-  // const poolTokenAmount = 1;
-
-  // create a deposit transactions (this also does not currently work...)
-  // const depositIx = TokenSwap.depositAllTokenTypesInstruction(
-  //   tokenSwap,
-  //   authority,
-  //   receiver.publicKey,
-  //   // mintA,
-  //   // mintB,
-  //   tokenA.receiverTokenAccount,
-  //   tokenB.receiverTokenAccount,
-  //   tokenAccountA,
-  //   tokenAccountB,
-  //   poolToken,
-  //   receiversPoolAccount,
-  //   swapProgramId,
-  //   TOKEN_PROGRAM_ID,
-  //   TOKEN_PROGRAM_ID,
-  //   poolTokenProgramId,
-  //   // poolTokenAmount,
-  //   poolTokenAmount * 10 ** 2,
-  //   100e9,
-  //   100e9
-  // );
-  // transaction.add(depositIx);
-
-  console.log("Create a swap transaction...");
-
-  // create the swap deposit instruction with added params
-  // NOTE: this is a suspected problem that the Rust swap program expects the token mints as well, but the current JS library does not provide?
-  // https://github.com/solana-labs/solana-program-library/blob/master/token-swap/program/src/processor.rs#L400
-  // const ixLegacy = TokenSwap.swapInstruction(
-  //   tokenSwap,
-  //   authority,
-  //   receiver.publicKey,
-  //   tokenA.receiverTokenAccount,
-  //   tokenAccountA,
-  //   tokenAccountB,
-  //   tokenB.receiverTokenAccount,
-  //   poolToken,
-  //   feeAccount,
-  //   null, // there is no host fee account!
-
-  //   swapProgramId,
-  //   TOKEN_PROGRAM_ID,
-  //   TOKEN_PROGRAM_ID,
-  //   poolTokenProgramId,
-  //   amountToSwap,
-  //   0, // allow a minimum amount of 0 tokens in return; 0 not recommended for production apps!
-
-  //   mintA,
-  //   mintB
-  // );
+  console.log("Create a swap 'legacy' transaction...");
 
   // swap transaction using the current JS swap library
   // the swap IX format that @solana/spl-token-swap v0.2.1 wants....
   // but it does not work (due to a bug in the library)...
-  // const ixLegacy = TokenSwap.swapInstruction(
-  //   tokenSwap,
-  //   authority,
+  // const swapIx = TokenSwap.swapInstruction(
+  //   swapPool.tokenSwap,
+  //   swapPool.authority,
   //   receiver.publicKey,
   //   tokenA.receiverTokenAccount,
-  //   tokenAccountA,
-  //   tokenAccountB,
+  //   swapPool.tokenAccountA,
+  //   swapPool.tokenAccountB,
   //   tokenB.receiverTokenAccount,
-  //   poolToken,
-  //   feeAccount,
+  //   swapPool.poolToken,
+  //   swapPool.feeAccount,
   //   null, // there is no host fee account!
-  //   swapProgramId,
-  //   TOKEN_PROGRAM_ID,
-  //   TOKEN_PROGRAM_ID,
-  //   poolTokenProgramId,
+  //   swapPool.swapProgramId,
+  //   TOKEN_PROGRAM_ID, // this is the token program used to create TokenA
+  //   TOKEN_PROGRAM_ID, // this is the token program used to create TokenB
+  //   swapPool.poolTokenProgramId, // name changed from `tokenProgramId` in @swap/spl-token-swap v0.2.1
   //   amountToSwap,
   //   0 // allow a minimum amount of 0 tokens in return; 0 not recommended for production apps!
   // );
 
   // create a swap transaction using the JS swap library
   // the swap IX format that @solana/spl-token-swap v0.2.0 wants....
-  const ixLegacy = TokenSwap.swapInstruction(
-    tokenSwap,
-    authority,
+  const swapIx = TokenSwap.swapInstruction(
+    swapPool.tokenSwap,
+    swapPool.authority,
     receiver.publicKey,
     tokenA.receiverTokenAccount,
-    tokenAccountA,
-    tokenAccountB,
+    swapPool.tokenAccountA,
+    swapPool.tokenAccountB,
     tokenB.receiverTokenAccount,
-    poolToken,
-    feeAccount,
+    swapPool.poolToken,
+    swapPool.feeAccount,
     null, // there is no host fee account!
-    swapProgramId,
-    tokenProgramId,
+    swapPool.swapProgramId,
+    swapPool.tokenProgramId, // renamed to `poolTokenProgramId` in @swap/spl-token-swap v0.2.1
     amountToSwap,
-    0 // allow a minimum amount of 0 tokens in return; 0 not recommended for production apps!
+    0 // allow a minimum amount of 0 tokens in return (0 not recommended for production apps!)
   );
 
   // create a `legacy` transaction to perform a swap
-  const transaction = new web3.Transaction();
-  transaction.add(ixLegacy);
+  const transactionLegacy = new web3.Transaction();
 
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  // console.log("Sending via 'legacy' transaction...");
-
-  // // send a legacy 'transaction'
-  // txid = await web3.sendAndConfirmTransaction(connection, transaction, [
-  //   receiver,
-  // ]);
-
-  // console.log(
-  //   `Legacy swap transaction: https://explorer.solana.com/tx/${txid}?cluster=devnet`
-  // );
-
-  // console.log(ixLegacy.keys);
-
-  const keys = [];
+  // add `ixCounter` number of instructions to the `legacy` transaction
+  for (let i = 0; i < ixCounter; i++) transactionLegacy.add(swapIx);
 
   // extract all the keys from the tokens and the token pool
-  for (let i = 0; i < ixLegacy.keys.length; i++) {
-    keys.push(ixLegacy.keys[i].pubkey);
-    console.log(ixLegacy.keys[i].pubkey.toBase58());
+  const addresses = [];
+
+  for (let i = 0; i < swapIx.keys.length; i++) {
+    addresses.push(swapIx.keys[i].pubkey);
+    // console.log(swapIx.keys[i].pubkey.toBase58());
   }
 
-  console.log("Total keys found in transaction:", keys.length);
-
-  // console.log("Legacy transaction byte length:");
-  // console.log(transaction.serialize().byteLength());
-
-  return;
-
-  // const slot = await connection.getSlot();
-
-  // const block = await connection.getBlock(slot, {
-  //   maxSupportedTransactionVersion: 0,
-  // });
-
-  // // calculate the min rent needed to keep account open
-  // let minRent = await connection.getMinimumBalanceForRentExemption(0);
-  // console.log("min balance for rent exempt:", minRent);
-
-  // // console.log(block);
-
-  // blockhash = await connection
-  //   .getLatestBlockhash()
-  //   .then((res) => res.blockhash);
-  // console.log(recentBlockhash);
+  console.log("Total addresses to add to table:", addresses.length);
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -252,183 +126,196 @@ async function main() {
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   /*
-    generate 2 addresses
-    airdrop sol to one
-    create a ALT
-    extend it with these two address
-    create a v0 instruction
+    Create and extend the Address Lookup Table 
   */
 
-  // create a "throw away" wallet for testing
-  let toAccount = web3.Keypair.generate();
-  console.log("Generated `toAccount` address:", toAccount.publicKey.toBase58());
-
-  // create a random extra "throw away" wallet for testing
-  let tokenSwapStateAccount = web3.Keypair.generate();
   console.log(
-    "Generated `tokenSwapStateAccount` address:",
-    tokenSwapStateAccount.publicKey.toBase58()
+    "\nWaiting a few seconds to please the address lookup table slot checker...\n"
   );
+  await new Promise((resolve) => setTimeout(resolve, 5_000));
 
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  console.log("generate a lookup table");
-
-  let [lookupTableInst, lookupTableAddress] =
+  // create an Address Lookup Table instruction (and derive it's address)
+  const [lookupTableInst, lookupTableAddress] =
     web3.AddressLookupTableProgram.createLookupTable({
       authority: payer.publicKey,
       payer: payer.publicKey,
       recentSlot: slot,
     });
 
-  console.log("table address:", lookupTableAddress.toBase58());
+  console.log("Table address:", lookupTableAddress.toBase58());
 
-  //   console.log(
-  //     `https://explorer.solana.com/address/${lookupTableAddress.toBase58()}?cluster=${SOLANA_CLUSTER}`
-  //   );
-
-  // create the listing of accounts to add to the ALT
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  blockhash = await connection
-    .getLatestBlockhash()
-    .then((res) => res.blockhash);
-
-  // create extend instruction
-  let extendInstruction = web3.AddressLookupTableProgram.extendLookupTable({
-    payer: payer.publicKey,
+  // create the ALT extend instruction to store all of our `addresses` on chain in the ALT
+  const extendInstruction = web3.AddressLookupTableProgram.extendLookupTable({
     authority: payer.publicKey,
+    payer: payer.publicKey,
     lookupTable: lookupTableAddress,
-    addresses: [
-      payer.publicKey,
-      toAccount.publicKey,
-      tokenSwapStateAccount.publicKey,
-      // randomly generate some extra keys for the ALT
-      web3.Keypair.generate().publicKey,
-      web3.Keypair.generate().publicKey,
-      web3.Keypair.generate().publicKey,
-      web3.Keypair.generate().publicKey,
-      web3.Keypair.generate().publicKey,
-      web3.SystemProgram.programId,
-    ],
+    addresses, // this will use the same address extracted from the `legacy` instruction
   });
 
-  // create the message for creating the lookup table
-  let message = new web3.TransactionMessage({
-    payerKey: payer.publicKey,
-    recentBlockhash: blockhash,
-    instructions: [lookupTableInst, extendInstruction],
-  }).compileToV0Message();
+  console.log("Sending the create/extend ALT via a 'legacy' transaction...");
 
-  // create and sign the transaction
-  transaction = new web3.VersionedTransaction(message);
-  transaction.sign([payer]);
+  // send a legacy 'transaction' to create and extend the table
+  const extendTxid = await web3.sendAndConfirmTransaction(
+    connection,
+    new web3.Transaction().add(lookupTableInst, extendInstruction),
+    [payer]
+  );
 
-  //
-  console.log("Send the transaction to create the lookup table:");
-  txid = await sendTransactionV0(transaction);
-  console.log("\n");
+  console.log(
+    `Transaction: https://explorer.solana.com/tx/${extendTxid}?cluster=devnet`
+  );
+
+  /***************************************************************************************************
+  ***************************************************************************************************
+
+    NOTE:
+    - Address lookup tables can be CREATED and/or EXTENDED via a `legacy` or `v0` transaction
+      (The above example is using a 'legacy' transaction to create and extend)
+    - However, to utilize the lookup capabilities within a transaction, you must use a `v0` transaction
+        (like demonstrated below)
+  
+  ****************************************************************************************************
+  ****************************************************************************************************/
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  // console.log(
-  //   "\n\n--------------------------------------------------------------"
-  // );
-  // console.log("--------------------------------------------------------------");
-  // console.log("--------------------------------------------------------------");
-  // console.log("\n");
+  /*
+    You can fetch the complete on chain lookup table like so:
+  */
 
+  console.log("\nFetch the lookup table from the cluster...");
+
+  // fetch the complete lookup table from the cluster
   const lookupTableAccount = await connection
     .getAddressLookupTable(lookupTableAddress)
     .then((res) => res.value);
-  // let lookupTable = web3.AddressLookupTableAccount();
-
-  console.log("Table from cluster:");
-  console.log(lookupTableAccount);
 
   // display all the addresses in the table
-  for (let i = 0; i < lookupTableAccount.state.addresses.length; i++) {
-    let key = lookupTableAccount.state.addresses[i];
-    console.log(i, key.toBase58());
-  }
+  // NOTE: these should be in the exact same order as the `addresses` array
+  // for (let i = 0; i < lookupTableAccount.state.addresses.length; i++) {
+  //   let key = lookupTableAccount.state.addresses[i];
+  //   console.log(i, key.toBase58());
+  // }
 
-  console.log("\n");
-  console.log("--------------------------------------------------------------");
-  // console.log("cluster version:", version);
-
-  console.log("Generated `toAccount` address:", toAccount.publicKey.toBase58());
-  console.log("Generated `payer` address:", payer.publicKey.toBase58());
-
-  console.log("lookup table account:", lookupTableAddress.toBase58());
+  console.log("Lookup table address:", lookupTableAccount.key.toBase58());
   console.log(
     "Addresses found in table:",
     lookupTableAccount.state.addresses.length
   );
 
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  /*
+  Create a new v0 transaction that uses the lookup table in it
+  (you know, the reason you are reading this code) :)
+  */
+
+  console.log("Build the v0 Message and Transaction...");
+
+  // get the latest blockhash for use in our transaction message
+  const blockhash = await connection
+    .getLatestBlockhash()
+    .then((res) => res.blockhash);
+
+  /***************************************************************************************************
+  ***************************************************************************************************
+ 
+    NOTE:
+      When we compile the `Message` into a v0 message (via `compileToV0Message`) 
+      we are providing an array of all the address lookup tables used 
+      (with each of these tables being a `AddressLookupTableAccount` item within the array)
+ 
+  ****************************************************************************************************
+  ****************************************************************************************************/
+
+  // build a v0 compatible instruction for use with the v0 transaction we will create
+  // const swapIxV0 = "";
+  const swapIxV0 = [];
+
+  // add `ixCounter` number of instructions to the `legacy` transaction
+  for (let i = 0; i < ixCounter; i++) swapIxV0.push(swapIx);
+
+  // build a v0 message to be used withing out v0 transaction
+  const messageV0 = new web3.TransactionMessage({
+    payerKey: receiver.publicKey,
+    recentBlockhash: blockhash,
+    instructions: swapIxV0, // note this is an array of instructions
+  }).compileToV0Message([lookupTableAccount]);
+
+  // create a v0 transaction from the v0 message
+  const transactionV0 = new web3.VersionedTransaction(messageV0);
+
+  /***************************************************************************************************
+  ***************************************************************************************************
+ 
+    NOTE:
+    When sending a `VersionedTransaction`, it must be signed BEFORE calling the 
+    `sendAndConfirmTransaction` method. If you pass an array of `Signer` 
+    (like with `legacy` transactions) the method will trigger an error!
+    
+  ****************************************************************************************************
+  ****************************************************************************************************/
+
+  // sign the v0 transaction using the file system wallet we created named `payer`
+  transactionV0.sign([receiver]);
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  console.log("\n---------------------------------------------------------");
+  console.log("Send the 'legacy' and 'v0' transactions to the cluster");
+  console.log("---------------------------------------------------------\n");
+
+  console.log("Sending the swap 'legacy' transaction...");
+
+  // send the legacy transaction (`transactionLegacy`)
+  const txidLegacy = await web3.sendAndConfirmTransaction(
+    connection,
+    transactionLegacy,
+    [receiver]
+  );
+
   console.log(
-    "--------------------------------------------------------------\n"
+    `Legacy swap transaction: https://explorer.solana.com/tx/${txidLegacy}?cluster=devnet`
+  );
+
+  console.log("Sending the swap 'v0' transaction...");
+
+  // send the v0 transaction (`transactionV0`)
+  const txidV0 = await web3.sendAndConfirmTransaction(
+    connection,
+    transactionV0
+  );
+
+  console.log(
+    `v0 swap transaction: https://explorer.solana.com/tx/${txidV0}?cluster=devnet`
   );
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  // console.log("waiting for 10 seconds");
-  // await new Promise((resolve) => setTimeout(resolve, 10_000));
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  const instructions = [];
+  console.log("\n---------------------------------------------------------");
+  console.log("Versioned transaction stats");
+  console.log("---------------------------------------------------------\n");
 
-  /*
-    Create a new v0 transaction that uses the lookup table in it
-  */
+  console.log("Token swaps per transaction:", ixCounter);
+  console.log("v0 transaction size:", transactionV0.serialize().length);
+  console.log(
+    "Legacy transaction size:",
+    transactionLegacy.serialize().buffer.byteLength
+  );
 
-  return;
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  /*
-    Create a simple v0 transaction that uses the lookupTable (sort of)
-  */
-
-  // const transferMsg = new web3.TransactionMessage({
-  //   payerKey: payer.publicKey,
-  //   recentBlockhash: blockhash,
-  //   instructions: [
-  //     web3.SystemProgram.transfer({
-  //       fromPubkey: payer.publicKey,
-  //       toPubkey: toAccount.publicKey,
-  //       lamports: minRent,
-  //     }),
-  //   ],
-  // }).compileToV0Message([lookupTableAccount]);
-
-  // const transferTx = new web3.VersionedTransaction(transferMsg);
-  // transferTx.sign([payer]);
-
-  // console.log(
-  //   "\n-------------------------------------------------------------"
-  // );
-  // console.log("transferTx: ");
-  // console.log(transferTx);
-
-  // // return;
-
-  // await sendTransactionV0(transferTx);
-
-  // console.log(
-  //   "\n-------------------------------------------------------------"
-  // );
-  // // console.log("Get the transaction from the cluster");
-  // await getTransactionV0(txid);
+  console.log("\n"); // give extra space at the bottom :)
 }
 
 // run our code, allowing use of Promises

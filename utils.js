@@ -1,12 +1,5 @@
 // import the Solana web3.js library
 const web3 = require("@solana/web3.js");
-const token = require("@solana/spl-token");
-const {
-  TokenSwap,
-  TOKEN_SWAP_PROGRAM_ID,
-  TokenSwapLayout,
-} = require("@solana/spl-token-swap");
-
 const fs = require("fs");
 
 //
@@ -21,23 +14,7 @@ async function getTransactionV0(connection, txid) {
   return getTx;
 }
 
-async function sendTransactionV0(transaction) {
-  // send the transaction to the cluster
-  console.log("Sending transaction...");
-  let txid = await web3.sendAndConfirmTransaction(connection, transaction);
-  console.log("Transaction submitted:", txid);
-
-  if (SOLANA_CLUSTER === "devnet")
-    console.log(`${explorerUrl}/tx/${txid}?cluster=${SOLANA_CLUSTER}`);
-
-  return txid;
-}
-
-async function loadSavedTokenProfile(
-  connection,
-  tokenName,
-  dirName = DEFAULT_DIR_NAME
-) {
+function loadSavedTokenProfile(tokenName, dirName = DEFAULT_DIR_NAME) {
   // create the `${dirName}` directory exists
   if (!fs.existsSync(`./${dirName}/`)) fs.mkdirSync(`./${dirName}/`);
 
@@ -59,6 +36,58 @@ async function loadSavedTokenProfile(
   } else return false;
 }
 
+function loadSavedSwapPool(dirName = DEFAULT_DIR_NAME) {
+  // create the `${dirName}` directory exists
+  if (!fs.existsSync(`./${dirName}/`)) fs.mkdirSync(`./${dirName}/`);
+
+  const fileName = `./${dirName}/swapPool.json`;
+
+  if (fs.existsSync(fileName)) {
+    let swapPool = JSON.parse(fs.readFileSync(fileName));
+
+    // convert all the string keys to PublicKeys
+    swapPool = {
+      tokenSwap: new web3.PublicKey(swapPool?.tokenSwap || ""),
+      swapProgramId: new web3.PublicKey(swapPool?.swapProgramId || ""),
+      tokenProgramId: new web3.PublicKey(swapPool?.tokenProgramId || ""),
+      poolToken: new web3.PublicKey(swapPool?.poolToken || ""),
+      feeAccount: new web3.PublicKey(swapPool?.feeAccount || ""),
+      authority: new web3.PublicKey(swapPool?.authority || ""),
+      tokenAccountA: new web3.PublicKey(swapPool?.tokenAccountA || ""),
+      tokenAccountB: new web3.PublicKey(swapPool?.tokenAccountB || ""),
+      mintA: new web3.PublicKey(swapPool?.mintA || ""),
+      mintB: new web3.PublicKey(swapPool?.mintB || ""),
+    };
+
+    return swapPool;
+  } else return false;
+}
+
+function saveSwapPoolProfile(swapPool) {
+  // convert the needed token profile values to their string values
+  const profile = {
+    tokenSwap: swapPool?.tokenSwap?.toBase58(),
+    swapProgramId: swapPool?.swapProgramId?.toBase58(),
+    tokenProgramId: swapPool?.tokenProgramId?.toBase58(),
+    poolToken: swapPool?.poolToken?.toBase58(),
+    feeAccount: swapPool?.feeAccount?.toBase58(),
+    authority: swapPool?.authority?.toBase58(),
+    tokenAccountA: swapPool?.tokenAccountA?.toBase58(),
+    tokenAccountB: swapPool?.tokenAccountB?.toBase58(),
+    mintA: swapPool?.mintA?.toBase58(),
+    mintB: swapPool?.mintB?.toBase58(),
+
+    // tokenMint: profile.tokenMint.toBase58(),
+    // tokenAccount: profile.tokenAccount.toBase58(),
+    // receiverTokenAccount: profile.receiverTokenAccount.toBase58(),
+    // amountMint: profile.amountMint,
+    // amountTransfer: profile.amountTransfer,
+    // tokenProgram: profile.tokenProgram,
+  };
+
+  saveToJSON(profile, "swapPool");
+}
+
 function saveTokenProfile(name, profile) {
   // convert the needed token profile values to their string values
   profile = {
@@ -78,6 +107,9 @@ function saveToJSON(content, fileName, dirName = DEFAULT_DIR_NAME) {
 
   // create the `${dirName}` directory exists
   if (!fs.existsSync(`./${dirName}/`)) fs.mkdirSync(`./${dirName}/`);
+
+  // remove the current JSON, if it already exists
+  if (fs.existsSync(fileName)) fs.unlinkSync(fileName);
 
   // JSON-ify and save the `content`
   fs.writeFileSync(fileName, JSON.stringify(content));
@@ -135,9 +167,10 @@ async function airdropOnLowBalance(connection, key, foceAirdrop = false) {
 
 module.exports = {
   getTransactionV0,
-  sendTransactionV0,
   saveTokenProfile,
   loadSavedTokenProfile,
+  loadSavedSwapPool,
+  saveSwapPoolProfile,
   loadOrGenerateKeypair,
   airdropOnLowBalance,
   saveToJSON,

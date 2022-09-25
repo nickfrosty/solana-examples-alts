@@ -7,11 +7,11 @@ const web3 = require("@solana/web3.js");
 const ACCOUNT_COUNTER = 3;
 
 // define our program ID and cluster to interact with
-const SOLANA_CLUSTER = "devnet";
-const SOLANA_CLUSTER_URL = web3.clusterApiUrl(SOLANA_CLUSTER);
+// const SOLANA_CLUSTER = "devnet";
+// const SOLANA_CLUSTER_URL = web3.clusterApiUrl(SOLANA_CLUSTER);
 
-// const SOLANA_CLUSTER = "localhost";
-// const SOLANA_CLUSTER_URL = "http://localhost:8899";
+const SOLANA_CLUSTER = "localhost";
+const SOLANA_CLUSTER_URL = "http://localhost:8899";
 
 let explorerUrl =
   SOLANA_CLUSTER === "devnet"
