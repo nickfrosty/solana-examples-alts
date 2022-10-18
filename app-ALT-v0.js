@@ -87,7 +87,7 @@ async function main() {
     payer.publicKey,
     web3.LAMPORTS_PER_SOL
   );
-  await connection.confirmTransaction(airdropSignature);
+  await connection.confirmTransaction({ signature: airdropSignature });
 
   // log the signature to the console
   if (SOLANA_CLUSTER === "devnet")

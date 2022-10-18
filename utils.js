@@ -159,7 +159,7 @@ async function airdropOnLowBalance(connection, key, foceAirdrop = false) {
       key.publicKey,
       web3.LAMPORTS_PER_SOL
     );
-    await connection.confirmTransaction(airdropSignature);
+    await connection.confirmTransaction({ signature: airdropSignature });
   } else console.log(`Balance of:`, balance / web3.LAMPORTS_PER_SOL);
 
   return balance;

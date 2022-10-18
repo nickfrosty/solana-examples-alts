@@ -52,7 +52,7 @@ async function createSwapPool(
       web3.LAMPORTS_PER_SOL
     );
 
-    await connection.confirmTransaction(airdropSignature);
+    await connection.confirmTransaction({ signature: airdropSignature });
   }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
